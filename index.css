@@ -1,32 +1,8 @@
-#game-canvas {
+#editor-canvas {
     top: 0;
     left: 0;
     position: fixed;
     width: 100vw;
     height: 100vh;
-    background-color: black;
-}
-
-#sliders-box {
-    width: 400px;
-    padding: 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    background-color: #fff2;
-    top: 5px;
-    right: 5px;
-    position: fixed;
-    color: #fff8;
-    font-family: "Courier New";
-    border-radius: 5px;
-}
-
-.slider-box {
-    display: flex;
-    gap: 5px;
-}
-
-.slider-box > input {
-    flex: 1;
+    background-color: white;
 }

@@ -3,19 +3,30 @@ import Rect from './rect.js'
 import ViewManager from './view_manager.js'
 import UpdateManager from './update_manager.js'
 import { lerp } from './utils.js'
+import AgentNode from './node.js'
 
 
+const TAU = 2 * Math.PI
 
 export default class Editor {
 
-    private readonly editorCanvas   = document.getElementById('game-canvas') as HTMLCanvasElement
+    private readonly editorCanvas   = document.getElementById('editor-canvas') as HTMLCanvasElement
     private readonly editorContext  = this.editorCanvas.getContext('2d')!
-    private renderCellSize          = 0
-    private renderRect              = new Rect(0, 0, 0, 0)
 
     private keyboardManager = new KeyboardManager()
-    private viewManager     = new ViewManager(this.editorCanvas)
+    private viewManager     = new ViewManager(this.editorCanvas.width, this.editorCanvas.height)
     private updateManager   = new UpdateManager()
+
+    private nodes = [
+        new AgentNode(0, 0, 100),
+        new AgentNode(100, 100, 100),
+        new AgentNode(200, 200, 100),
+        new AgentNode(300, 300, 100),
+        new AgentNode(400, 400, 100),
+        new AgentNode(500, 500, 100),
+        new AgentNode(600, 600, 100),
+        new AgentNode(700, 700, 100),
+    ]
 
     constructor() {
         this.bindEvents()
@@ -24,7 +35,7 @@ export default class Editor {
     }
 
     private bindEvents() {
-        this.editorCanvas.addEventListener('mousedown',     e => this.viewManager.mouseDown(e))
+        this.editorCanvas.addEventListener('mousedown',     e => this.viewManager.mouseDown(e, this.nodes))
         this.editorCanvas.addEventListener('mousemove',     e => this.viewManager.mouseMove(e))
         this.editorCanvas.addEventListener('mouseup',       e => this.viewManager.mouseUp(e))
         this.editorCanvas.addEventListener('wheel',         e => this.viewManager.wheelTurn(e) )
@@ -38,90 +49,82 @@ export default class Editor {
     private loop(time: number) {
         this.frame++
         this.updateManager.advanceFrame(time)
-        this.prevX = this.x
         for (let i = 0; i < this.updateManager.updateCount; i++) {
             this.viewManager.update()
-            this.prevX = this.x
-            this.x += 1
         }
-        this.x2++
         this.render(this.updateManager.interpolation)
         requestAnimationFrame(t => this.loop(t))
     }
 
 
 
-    prevX = 0
-    x = 0
-    x2 = 0
     private render(interpolation: number) {
         this.editorContext.clearRect(0, 0, window.innerWidth, window.innerHeight)
 
         this.editorContext.fillStyle = 'red'
-        const x = lerp(this.prevX, this.x, interpolation)
-        //const scale = lerp(this.viewManager.previousScale, this.viewManager.scale, interpolation)
-        const scale = this.viewManager.scale
-        this.editorContext.fillRect(x, 0, 90 * scale, 90 * scale)
-        this.editorContext.fillRect(this.x, 200, 90, 90)
-
-        this.editorContext.fillRect(this.x2, 300, 90, 90)
-
-        this.editorContext.fillStyle = 'blue'
-        const scaledX = this.viewManager.worldToScreenX(50)
-        const scaledY = this.viewManager.worldToScreenY(-20)
-        this.editorContext.fillRect(scaledX, scaledY, 90 * this.viewManager.scale, 90 * this.viewManager.scale)
-
-        console.log()
+        const scale = this.viewManager.currentScale()
 
 
-        this.renderGrid()
+
+        this.renderNodes()
+        this.renderGridLines()
         this.renderSelection()
     }
 
-    private renderGridLines(interpolation: number) {
-        // const xStart = 
-        // const yStart = 
-        // const cellSize = 
-        // for () {
+    private renderNodes() {
+        this.editorContext.beginPath()
+        for (const node of this.nodes) {
+            const screenX = this.viewManager.worldToScreenX(node.x)
+            const screenY = this.viewManager.worldToScreenY(node.y)
+            const screenRadius = node.radius * this.viewManager.currentScale()
+            this.editorContext.moveTo(screenX + screenRadius, screenY)
+            this.editorContext.arc(screenX, screenY, screenRadius, 0, TAU)
+        }
+        this.editorContext.strokeStyle = 'blue'
+        this.editorContext.stroke()
+    }
 
-        // }
-        // for () {
+    private renderGridLines() {
+        // screen x -> world x
+        const left    = this.viewManager.screenToWorldX(0)
+        const right   = this.viewManager.screenToWorldX(this.editorCanvas.width)
+        const top     = this.viewManager.screenToWorldY(0)
+        const bottom  = this.viewManager.screenToWorldY(this.editorCanvas.height)
 
-        // }
+        const screenWidth = this.editorCanvas.width
+        const screenHeight = this.editorCanvas.height
+
+        const x = Math.ceil(left / ViewManager.CELL_SIZE) * ViewManager.CELL_SIZE
+        const y = Math.ceil(top / ViewManager.CELL_SIZE) * ViewManager.CELL_SIZE
+        const increment = this.viewManager.scaledCellSize()
+
+        let screenX = this.viewManager.worldToScreenX(x)
+        let screenY = this.viewManager.worldToScreenY(y)
+        
+        this.editorContext.beginPath()
+        while (screenX < screenWidth) {
+            this.editorContext.moveTo(screenX, 0)
+            this.editorContext.lineTo(screenX, screenHeight)
+            screenX += increment
+        }
+        while (screenY < screenHeight) {
+            this.editorContext.moveTo(0, screenY)
+            this.editorContext.lineTo(screenWidth, screenY)
+            screenY += increment
+        }
+
+        this.editorContext.strokeStyle = '#0002'
+        this.editorContext.stroke()
     }
 
     private renderSelection() {
-        this.editorContext.beginPath()
-        this.editorContext.stroke()
-    }
 
-    private renderGrid() {
-        this.editorContext.strokeStyle = '#fff2'
-        this.editorContext.lineWidth = 1
-        this.editorContext.beginPath()
-        this.editorContext.stroke()
     }
 
     private resize() {
-        // set display variables in viewManager
-
         const size = this.editorCanvas.getBoundingClientRect()
         this.editorCanvas.width = size.width
         this.editorCanvas.height = size.height
-        this.setDisplayVariables()
-    }
-
-    private setDisplayVariables() {
-        
-    }
-
-    private getLevelPosition(pos: number, origin: number, scale: number) {
-        return (pos - origin) / scale
-    }
-    private getLevelX(x: number) {
-        return this.getLevelPosition(x, this.renderRect.x, this.renderCellSize)
-    }
-    private getLevelY(y: number) {
-        return this.getLevelPosition(y, this.renderRect.y, this.renderCellSize)
+        this.viewManager.setDisplayVariables(this.editorCanvas.width, this.editorCanvas.height)
     }
 }
