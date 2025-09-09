@@ -1,4 +1,3 @@
-import KeyboardManager from './keyboard_manager.js';
 import ViewManager from './view_manager.js';
 import UpdateManager from './update_manager.js';
 import AgentNode from './node.js';
@@ -6,7 +5,6 @@ const TAU = 2 * Math.PI;
 export default class Editor {
     editorCanvas = document.getElementById('editor-canvas');
     editorContext = this.editorCanvas.getContext('2d');
-    keyboardManager = new KeyboardManager();
     viewManager = new ViewManager(this.editorCanvas.width, this.editorCanvas.height);
     updateManager = new UpdateManager();
     nodes = [
@@ -33,9 +31,7 @@ export default class Editor {
         this.editorCanvas.addEventListener('contextmenu', e => e.preventDefault());
         window.addEventListener('resize', () => this.resize());
     }
-    frame = 0;
     loop(time) {
-        this.frame++;
         this.updateManager.advanceFrame(time);
         for (let i = 0; i < this.updateManager.updateCount; i++) {
             this.viewManager.update();
@@ -45,18 +41,15 @@ export default class Editor {
     }
     render(interpolation) {
         this.editorContext.clearRect(0, 0, window.innerWidth, window.innerHeight);
-        this.editorContext.fillStyle = 'red';
-        const scale = this.viewManager.currentScale();
         this.renderNodes();
         this.renderGridLines();
-        this.renderSelection();
     }
     renderNodes() {
         this.editorContext.beginPath();
         for (const node of this.nodes) {
-            const screenX = this.viewManager.worldToScreenX(node.x);
-            const screenY = this.viewManager.worldToScreenY(node.y);
-            const screenRadius = node.radius * this.viewManager.currentScale();
+            const screenX = this.viewManager.worldToScreenX(node.x, false);
+            const screenY = this.viewManager.worldToScreenY(node.y, false);
+            const screenRadius = node.radius * this.viewManager.lagScale;
             this.editorContext.moveTo(screenX + screenRadius, screenY);
             this.editorContext.arc(screenX, screenY, screenRadius, 0, TAU);
         }
@@ -64,18 +57,15 @@ export default class Editor {
         this.editorContext.stroke();
     }
     renderGridLines() {
-        // screen x -> world x
-        const left = this.viewManager.screenToWorldX(0);
-        const right = this.viewManager.screenToWorldX(this.editorCanvas.width);
-        const top = this.viewManager.screenToWorldY(0);
-        const bottom = this.viewManager.screenToWorldY(this.editorCanvas.height);
+        const left = this.viewManager.screenToWorldX(0, false);
+        const top = this.viewManager.screenToWorldY(0, false);
         const screenWidth = this.editorCanvas.width;
         const screenHeight = this.editorCanvas.height;
         const x = Math.ceil(left / ViewManager.CELL_SIZE) * ViewManager.CELL_SIZE;
         const y = Math.ceil(top / ViewManager.CELL_SIZE) * ViewManager.CELL_SIZE;
-        const increment = this.viewManager.scaledCellSize();
-        let screenX = this.viewManager.worldToScreenX(x);
-        let screenY = this.viewManager.worldToScreenY(y);
+        const increment = this.viewManager.scaledCellSize(false);
+        let screenX = this.viewManager.worldToScreenX(x, false);
+        let screenY = this.viewManager.worldToScreenY(y, false);
         this.editorContext.beginPath();
         while (screenX < screenWidth) {
             this.editorContext.moveTo(screenX, 0);
@@ -89,8 +79,6 @@ export default class Editor {
         }
         this.editorContext.strokeStyle = '#0002';
         this.editorContext.stroke();
-    }
-    renderSelection() {
     }
     resize() {
         const size = this.editorCanvas.getBoundingClientRect();

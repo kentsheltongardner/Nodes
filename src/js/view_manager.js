@@ -1,48 +1,61 @@
-import { lerp } from './utils.js';
+import UpdateManager from './update_manager.js';
 export default class ViewManager {
     static MAX_SCALE_POSITION = 30;
     static MIN_SCALE_POSITION = 10;
     static DEFAULT_SCALE_POSITION = 20;
-    static SCALE_SPEED = 0.01;
+    static SCALE_SPEED = 0.03;
     static CELL_SIZE = 64;
-    width = 0;
-    height = 0;
+    screenWidth = 0;
+    screenHeight = 0;
     previousFocusX = 0;
     previousFocusY = 0;
     previousScale = 1;
     focusX = 0;
     focusY = 0;
     scale = 1;
+    lagFocusX = 0;
+    lagFocusY = 0;
+    lagScale = 1;
     selectedNode = null;
     scalePosition = ViewManager.DEFAULT_SCALE_POSITION;
     constructor(width, height) {
         this.setDisplayVariables(width, height);
     }
     update() {
-        // TODO?
+        this.lagFocusX += (this.focusX - this.lagFocusX) * ViewManager.SCALE_SPEED * UpdateManager.UPDATE_MILLISECONDS;
+        this.lagFocusY += (this.focusY - this.lagFocusY) * ViewManager.SCALE_SPEED * UpdateManager.UPDATE_MILLISECONDS;
+        this.lagScale += (this.scale - this.lagScale) * ViewManager.SCALE_SPEED * UpdateManager.UPDATE_MILLISECONDS;
     }
-    worldToScreenX(editorX) {
-        return this.worldToScreenPosition(editorX, this.width, this.previousFocusX, this.focusX);
+    worldToScreenX(editorX, immediate = true) {
+        return immediate
+            ? this.worldToScreenPosition(editorX, this.screenWidth, this.focusX, this.scale)
+            : this.worldToScreenPosition(editorX, this.screenWidth, this.lagFocusX, this.lagScale);
     }
-    worldToScreenY(editorY) {
-        return this.worldToScreenPosition(editorY, this.height, this.previousFocusY, this.focusY);
+    worldToScreenY(editorY, immediate = true) {
+        return immediate
+            ? this.worldToScreenPosition(editorY, this.screenHeight, this.focusY, this.scale)
+            : this.worldToScreenPosition(editorY, this.screenHeight, this.lagFocusY, this.lagScale);
     }
-    worldToScreenPosition(editorPosition, screenSize, previousFocus, focus) {
-        const offset = editorPosition - lerp(previousFocus, focus, 1);
-        const scaledOffset = offset * lerp(this.previousScale, this.scale, 1);
+    worldToScreenPosition(editorPosition, screenSize, focus, scale) {
+        const offset = editorPosition - focus;
+        const scaledOffset = offset * scale;
         const screenPosition = screenSize / 2 + scaledOffset;
         return screenPosition;
     }
-    screenToWorldX(screenX) {
-        return this.screenToWorldPosition(screenX, this.width, this.previousFocusX, this.focusX);
+    screenToWorldX(screenX, immediate = true) {
+        return immediate
+            ? this.screenToWorldPosition(screenX, this.screenWidth, this.focusX, this.scale)
+            : this.screenToWorldPosition(screenX, this.screenWidth, this.lagFocusX, this.lagScale);
     }
-    screenToWorldY(screenY) {
-        return this.screenToWorldPosition(screenY, this.height, this.previousFocusY, this.focusY);
+    screenToWorldY(screenY, immediate = true) {
+        return immediate
+            ? this.screenToWorldPosition(screenY, this.screenHeight, this.focusY, this.scale)
+            : this.screenToWorldPosition(screenY, this.screenHeight, this.lagFocusY, this.lagScale);
     }
-    screenToWorldPosition(screenPosition, screenSize, previousFocus, focus) {
+    screenToWorldPosition(screenPosition, screenSize, focus, scale) {
         const offset = screenPosition - screenSize / 2;
-        const scaledOffset = offset / lerp(this.previousScale, this.scale, 1);
-        const editorPosition = lerp(previousFocus, focus, 1) + scaledOffset;
+        const scaledOffset = offset / scale;
+        const editorPosition = focus + scaledOffset;
         return editorPosition;
     }
     leftDown = false;
@@ -53,8 +66,8 @@ export default class ViewManager {
     y = 0;
     leftDownX = 0;
     leftDownY = 0;
-    intScaleToScale(intScale) {
-        const factor = intScale / ViewManager.DEFAULT_SCALE_POSITION;
+    scalePositionToScale(scalePosition) {
+        const factor = scalePosition / ViewManager.DEFAULT_SCALE_POSITION;
         return factor * factor * factor;
     }
     wheelTurn(e) {
@@ -74,9 +87,8 @@ export default class ViewManager {
         const focusX = this.screenToWorldX(this.screenX);
         const focusY = this.screenToWorldY(this.screenY);
         this.scalePosition = this.scalePosition + direction;
-        const factor = this.scalePosition / ViewManager.DEFAULT_SCALE_POSITION;
         this.previousScale = this.scale;
-        this.scale = factor * factor * factor;
+        this.scale = this.scalePositionToScale(this.scalePosition);
         const scaledFocusX = this.screenToWorldX(this.screenX);
         const scaledFocusY = this.screenToWorldY(this.screenY);
         const dx = scaledFocusX - focusX;
@@ -105,7 +117,7 @@ export default class ViewManager {
     mouseMove(e) {
         const dx = e.offsetX - this.screenX;
         const dy = e.offsetY - this.screenY;
-        const scaledDX = dx / this.scale;
+        const scaledDX = dx / this.scale; // TODO
         const scaledDY = dy / this.scale;
         if (this.rightDown) {
             this.focusX = this.focusX - scaledDX;
@@ -131,20 +143,13 @@ export default class ViewManager {
         this.leftDown = false;
         this.rightDown = false;
     }
-    setDisplayVariables(width, height) {
-        this.width = width;
-        this.height = height;
+    setDisplayVariables(screenWidth, screenHeight) {
+        this.screenWidth = screenWidth;
+        this.screenHeight = screenHeight;
     }
-    scaledCellSize() {
-        return this.scale * ViewManager.CELL_SIZE;
-    }
-    currentScale() {
-        return this.scale;
-    }
-    currentFocusX() {
-        return this.focusX;
-    }
-    currentFocusY() {
-        return this.focusY;
+    scaledCellSize(immediate) {
+        return immediate
+            ? this.scale * ViewManager.CELL_SIZE
+            : this.lagScale * ViewManager.CELL_SIZE;
     }
 }
